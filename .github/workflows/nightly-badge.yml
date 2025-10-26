@@ -1,0 +1,66 @@
+name: Nightly Badge
+
+on:
+  workflow_call:
+    inputs:
+      nightly-build-workflow:
+        description: "Filename of the nightly build workflow (e.g. build-nightly_12.2.yml)"
+        required: true
+        type: string
+
+jobs:
+  badge:
+    name: Badge proxy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Log upstream conclusion (event)
+        run: |
+          echo "Upstream conclusion: ${{ github.event.workflow_run.conclusion }}"
+
+      - name: Mark as failing if upstream failed
+        if: ${{ github.event.workflow_run.conclusion != 'cancelled' && github.event.workflow_run.conclusion != 'success' }}
+        run: |
+          echo "Upstream concluded ${{ github.event.workflow_run.conclusion }} -> marking badge as failing."
+          exit 1
+
+      - name: Check latest non-cancelled run of build-nightly workflow
+        if: ${{ github.event.workflow_run.conclusion == 'cancelled' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} # GH CLI will use this for authentification
+        run: |
+          # Fail fast and detect common errors:
+          # -e: exit on any command returning non-zero
+          # -u: treat use of unset variables as errors
+          # -o pipefail: make pipelines fail if any stage fails
+          set -euo pipefail
+
+          workflow_file='${{ inputs.nightly-build-workflow }}'
+          repo="${GITHUB_REPOSITORY}"  # owner/repo
+
+          echo "Querying recent runs for workflow file: $workflow_file in $repo"
+
+          # Fetch non-cancelled runs
+          non_cancelled_runs=$(gh api repos/"$repo"/actions/workflows/"$workflow_file"/runs --jq '.workflow_runs | map(select(.conclusion!="cancelled"))')
+
+          # Count non-cancelled runs. If none found - fail the workflow.
+          non_cancelled_count=$(echo "$non_cancelled_runs" | jq 'length')
+          if [ -z "$non_cancelled_count" ] || [ "$non_cancelled_count" -eq 0 ]; then
+            echo "No non-cancelled runs found for $workflow_file."
+            exit 1
+          fi
+
+          # Get the first (most recent) non-cancelled run object and extract its run-id, status and conclusion
+          first_run=$(echo "$non_cancelled_runs" | jq '.[0]')
+          run_id=$(echo "$first_run" | jq -r '.id')
+          run_status=$(echo "$first_run" | jq -r '.status')
+          run_conclusion=$(echo "$first_run" | jq -r '.conclusion')
+
+          echo "Selected run id=$run_id status=$run_status conclusion=$run_conclusion"
+
+          # If the found run's conclusion is not "success": fail the workflow
+          if [ "$run_conclusion" != "success" ]; then
+            echo "Latest non-cancelled run (id=$run_id) conclusion is '$run_conclusion' (status='$run_status'). Expecting 'success'. Failing as requested."
+            exit 1
+          fi
+
+          echo "Latest non-cancelled run succeeded."
