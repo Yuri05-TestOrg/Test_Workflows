@@ -1,7 +1,7 @@
 name: Nightly Badge
-# This workflow acts as a badge proxy for a nightly build workflow. It is intended to be
-# invoked via workflow_call by the nightly build workflow to update or reflect a repository
-# badge according to the latest run's result.
+# This workflow acts as a proxy for the nightly build workflow. 
+# Upon completion of a nightly build, it is invoked to update a repository badge 
+# according to the latest run's result.
 #
 # Inputs:
 #   - nightly-build-workflow (string, required): filename of the nightly workflow to inspect
