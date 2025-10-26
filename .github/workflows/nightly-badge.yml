@@ -1,4 +1,21 @@
 name: Nightly Badge
+# This workflow acts as a badge proxy for a nightly build workflow. It is intended to be
+# invoked via workflow_call by the nightly build workflow to update or reflect a repository
+# badge according to the latest run's result.
+#
+# Inputs:
+#   - nightly-build-workflow (string, required): filename of the nightly workflow to inspect
+#     (e.g. build-nightly_12.2.yml). This is the workflow file whose recent run(s) will be
+#     queried to determine the badge state.
+#
+# Behavior summary:
+#   1. If the triggering workflow_run's conclusion is 'success' -> this workflow succeeds (badge passing).
+#   2. If the triggering workflow_run concluded with a non-cancelled failure (e.g. failure, timed_out)
+#      -> this workflow exits with a non-zero status (badge failing).
+#   3. If the triggering workflow_run concluded with 'cancelled' -> this workflow will query the
+#      GitHub Actions API for the latest non-cancelled run of the specified nightly workflow:
+#        - If the latest non-cancelled run's conclusion is 'success', treat the badge as passing.
+#        - Otherwise, exit non-zero (badge failing).
 
 on:
   workflow_call:
@@ -59,7 +76,7 @@ jobs:
 
           # If the found run's conclusion is not "success": fail the workflow
           if [ "$run_conclusion" != "success" ]; then
-            echo "Latest non-cancelled run (id=$run_id) conclusion is '$run_conclusion' (status='$run_status'). Expecting 'success'. Failing as requested."
+            echo "Latest non-cancelled run (id=$run_id) conclusion is '$run_conclusion' (status='$run_status'). Expecting 'success'."
             exit 1
           fi
 
